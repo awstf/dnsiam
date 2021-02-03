@@ -1,0 +1,64 @@
+AWSTemplateFormatVersion: 2010-09-09
+Parameters:
+  ZoneID:
+    Type: String
+    AllowedPattern: "^([A-Z0-9]{10,63})$"
+    Description: "Hosted Zone ID"
+  Domain:
+    Type: String
+    Description: "Domain name registered in Route53."
+  RoleName:
+    Type: String
+    AllowedPattern: "^([a-z0-9][a-z0-9-]{3,63})$"
+    Description: "Name of IAM role being created which can manage domain."
+  GroupName:
+    Type: String
+    AllowedPattern: "^([a-z0-9][a-z0-9-]{3,63})$"
+    Description: "Name of IAM group being created which can assume the role being created."
+Resources:
+# ------------------------------ Role ----------------------------------------
+  Role:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Ref RoleName
+      Description: !Sub "Allow management of '${Domain}' DNS records"
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Action:
+          - "sts:AssumeRole"
+          Principal:
+            AWS: !Sub "arn:aws:iam::${AWS::AccountId}:root"
+      Policies:
+      - PolicyName: !Ref RoleName
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - "route53:ChangeResourceRecordSets"
+            - "route53:GetChange"
+            - "route53:GetHostedZone"
+            Resource: "*"
+          - Effect: Allow
+            Action:
+            - "route53:ListHostedZones"
+            - "route53:ListHostedZonesByName"
+            Resource:
+            - !Sub "arn:aws:route53:::hostedzone/${ZoneID}"
+# ----------------------------- Group ----------------------------------------
+  Group:
+    Type: AWS::IAM::Group
+    Properties:
+      GroupName: !Ref GroupName
+      Policies:
+      - PolicyName: !Sub "Assume${RoleName}"
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - "sts:AssumeRole"
+            Resource:
+            - !GetAtt Role.Arn
